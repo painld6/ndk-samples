@@ -308,35 +308,44 @@ NDKCamera::~NDKCamera() {
  */
 void NDKCamera::EnumerateCamera() {
   ACameraIdList* cameraIds = nullptr;
+  // 获取所有设备可用摄像头
   CALL_MGR(getCameraIdList(cameraMgr_, &cameraIds));
 
+  LOGE("Camera size:%d", cameraIds->numCameras);    // 测试发现小米 10 pro 只能获取到 2 颗摄像头
   for (int i = 0; i < cameraIds->numCameras; ++i) {
     const char* id = cameraIds->cameraIds[i];
 
     ACameraMetadata* metadataObj;
+    // 获取当前摄像头所有的元数据（功能点的集合）
     CALL_MGR(getCameraCharacteristics(cameraMgr_, id, &metadataObj));
 
     int32_t count = 0;
+    // 列出当前摄像头功能下所有的标签条目
     const uint32_t* tags = nullptr;
     ACameraMetadata_getAllTags(metadataObj, &count, &tags);
     for (int tagIdx = 0; tagIdx < count; ++tagIdx) {
+      // 获取与摄像头朝向有关的标签条目
       if (ACAMERA_LENS_FACING == tags[tagIdx]) {
         ACameraMetadata_const_entry lensInfo = {
             0,
         };
+        // 获取当前条目下的详细信息
         CALL_METADATA(getConstEntry(metadataObj, tags[tagIdx], &lensInfo));
         CameraId cam(id);
+        // 查询相机与设备屏幕的方向
         cam.facing_ = static_cast<acamera_metadata_enum_android_lens_facing_t>(
             lensInfo.data.u8[0]);
         cam.owner_ = false;
         cam.device_ = nullptr;
         cameras_[cam.id_] = cam;
+        // 查询是否是后置摄像头，如果是，则把该摄像头 id 保存下来
         if (cam.facing_ == ACAMERA_LENS_FACING_BACK) {
           activeCameraId_ = cam.id_;
         }
         break;
       }
     }
+    // 释放内存
     ACameraMetadata_free(metadataObj);
   }
 
